@@ -19,8 +19,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. HTMLコードを変数に格納 (干渉を防ぐためシングルクォート3つを使用)
-html_code = '''
+# 3. HTMLコードを変数に格納 (シングルクォート3つで囲み、干渉を防止)
+html_code = r'''
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -39,6 +39,7 @@ html_code = '''
         * { box-sizing: border-box; font-family: 'Inter', 'Noto Sans JP', sans-serif; }
         body { background: var(--bg); color: var(--text-main); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
+        /* モーダルの修正：添付②の内容を忠実に再現 */
         #consentModal { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(12px); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
         .modal-content { background: white; padding: 2.5rem; border-radius: 28px; max-width: 620px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
         .scroll-terms { height: 250px; overflow-y: auto; background: #f1f5f9; padding: 1.5rem; border-radius: 16px; font-size: 0.85rem; line-height: 1.8; color: var(--text-sub); margin: 1.5rem 0; border: 1px solid var(--border); }
@@ -57,7 +58,6 @@ html_code = '''
             padding: 30px !important; 
             font-size: 16px !important; 
             line-height: 1.8 !important; 
-            font-family: 'Inter', 'Noto Sans JP', sans-serif !important;
             white-space: pre-wrap !important;
             word-wrap: break-word !important;
             margin: 0 !important; border: none !important; outline: none !important;
@@ -93,15 +93,22 @@ html_code = '''
 
 <div id="consentModal">
     <div class="modal-content">
-        <h2 style="text-align:center;">⚖️ ご利用前の承諾事項</h2>
-        <div class="scroll-terms">
-            <p><b>1. 本サービスの目的</b><br>補助ツールであり正確性を保証しません。</p>
-            <p><b>2. 法的助言の否定</b><br>法的助言ではありません。専門家にご相談ください。</p>
+        <div style="text-align: center; margin-bottom: 1rem;">
+            <div style="font-size: 3rem; margin-bottom: 10px;">⚖️</div>
+            <h2 style="margin: 0; font-weight: 800;">ご利用前の承諾事項</h2>
         </div>
-        <label style="display:block; text-align:center; margin-bottom:1.5rem;">
-            <input type="checkbox" id="consentCheck" onchange="document.getElementById('startBtn').disabled = !this.checked"> 免責事項に同意します
+        <div class="scroll-terms">
+            <p><b>1. 本サービスの目的</b><br>本ツールは、AIによる自然言語処理を用いて利用規約内の一般的なリスクを抽出する補助ツールです。情報の正確性や完全性を保証するものではありません。</p>
+            <p><b>2. 法的助言の否定</b><br>本ツールの解析結果は法的助言を構成しません。個別の事案については、必ず弁護士等の専門家にご相談ください。本ツールの利用により生じた損害について、提供者は一切の責任を負いません。</p>
+            <p><b>3. PDF解析の限界</b><br>PDFファイルの構造により、テキストが正しく抽出されない場合や、条文番号が誤認される場合があります。必ず元の文章と照らし合わせて確認してください。</p>
+            <p><b>4. プライバシーとデータ</b><br>入力されたテキストはブラウザ上での解析にのみ使用され、サーバー側で保存されることはありません。</p>
+            <p><b>5. 同意の確認</b><br>本ツールの利用を開始することで、上記全ての免責事項に同意したものとみなされます。判断は全て自己責任において行ってください。</p>
+        </div>
+        <label style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 1.5rem; font-weight: 700; cursor: pointer;">
+            <input type="checkbox" id="consentCheck" style="transform: scale(1.3);" onchange="document.getElementById('startBtn').disabled = !this.checked">
+            <span>免責事項を理解し、自己責任で利用することに同意します</span>
         </label>
-        <button id="startBtn" class="btn btn-primary" style="width: 100%; height: 50px;" onclick="document.getElementById('consentModal').style.display='none'" disabled>同意して開始</button>
+        <button id="startBtn" class="btn btn-primary" style="width: 100%; height: 56px; font-size: 1.1rem;" onclick="document.getElementById('consentModal').style.display='none'" disabled>同意して解析を開始する</button>
     </div>
 </div>
 
@@ -120,7 +127,7 @@ html_code = '''
             </div>
             <div class="actionbar">
                 <button class="btn" onclick="loadSample()">サンプル</button>
-                <button class="btn btn-primary" style="min-width: 180px;" onclick="runAnalysis()">規約を解析する</button>
+                <button class="btn btn-primary" style="min-width: 200px;" onclick="runAnalysis()">規約を解析する</button>
             </div>
         </div>
     </section>
@@ -130,11 +137,11 @@ html_code = '''
         <div id="resultsUI" class="hidden">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
                 <div id="riskCard" class="risk-card">
-                    <span style="font-size: 0.75rem; font-weight: 800;">TOTAL RISK</span>
+                    <span style="font-size: 0.75rem; font-weight: 800; opacity: 0.9;">TOTAL RISK</span>
                     <div id="riskLevel" class="risk-val">---</div>
                 </div>
                 <div class="risk-card" style="background: #1e293b;">
-                    <span style="font-size: 0.75rem; font-weight: 800;">ALERTS</span>
+                    <span style="font-size: 0.75rem; font-weight: 800; opacity: 0.9;">ALERTS</span>
                     <div id="matchCount" class="risk-val">0</div>
                 </div>
             </div>
@@ -169,11 +176,11 @@ html_code = '''
                 const content = await page.getTextContent();
                 let lastY = -1;
                 content.items.forEach(item => {
-                    if (lastY !== -1 && Math.abs(lastY - item.transform[5]) > 10) fullText += "\\n";
+                    if (lastY !== -1 && Math.abs(lastY - item.transform[5]) > 10) fullText += "\n";
                     fullText += item.str;
                     lastY = item.transform[5];
                 });
-                fullText += "\\n\\n";
+                fullText += "\n\n";
             }
             $('inputText').value = fullText;
         } else {
@@ -185,9 +192,11 @@ html_code = '''
     };
 
     const DICT = [
-        { name: '返金不可・制限', weight: 15, patterns: ["返金", "致しません", "不可", "応じない", "戻りません"], desc: '支払った料金が戻らない条項です。' },
+        { name: '返金不可・制限', weight: 15, patterns: ["返金", "致しません", "不可", "応じない", "戻りません", "キャンセル料"], desc: '支払った料金が戻らない条項です。' },
         { name: '不利益な自動更新', weight: 12, patterns: ["自動更新", "更新する", "自動的に", "解約しない限り"], desc: '手続きを忘れると契約が継続されるリスクがあります。' },
-        { name: '広範な免責事項', weight: 10, patterns: ["一切の責任を負わない", "免責", "保証しません"], desc: '運営側のミスでも責任を逃れる可能性がある条項です。' }
+        { name: '広範な免責事項', weight: 10, patterns: ["一切の責任を負わない", "免責", "保証しません", "補償いたしません"], desc: '運営側のミスでも責任を逃れる可能性がある条項です。' },
+        { name: '著作権の譲渡・利用', weight: 8, patterns: ["著作権", "帰属", "無償で利用", "当社に許諾"], desc: '投稿内容を自由に使う権利に関する条項です。' },
+        { name: '規約変更・管轄', weight: 7, patterns: ["予告なく変更", "合意管轄", "裁判所"], desc: 'ルール変更やトラブル時の裁判場所に注意。' }
     ];
 
     function runAnalysis() {
@@ -208,9 +217,9 @@ html_code = '''
                     if (endIdx === -1) endIdx = text.length;
                     const fullSentence = text.substring(startIdx, endIdx + 1).trim();
                     const sub = text.substring(0, idx);
-                    const m = [...sub.matchAll(/第\\s*\\d+\\s*条/g)];
+                    const m = [...sub.matchAll(/第\s*\d+\s*条/g)];
                     if (m.length > 0 && fullSentence.length > 2) {
-                        const clauseName = m[m.length - 1][0].replace(/\\s/g, '');
+                        const clauseName = m[m.length - 1][0].replace(/\s/g, '');
                         matches.push({ clause: clauseName, text: fullSentence });
                         sentencesToHighlight.push(fullSentence);
                     }
@@ -227,11 +236,11 @@ html_code = '''
         const uniqueSentences = [...new Set(sentencesToHighlight)].sort((a,b) => b.length - a.length);
         uniqueSentences.forEach(s => {
             const escapedS = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            const reg = new RegExp(escapedS.replace(/[-\\/\\^$*+?.()|[\\]{}]/g, '\\\\$&'), 'g');
+            const reg = new RegExp(escapedS.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g');
             htmlContent = htmlContent.replace(reg, `<span class="hl">${escapedS}</span>`);
         });
 
-        $('highlightOverlay').innerHTML = htmlContent + "\\n\\n ";
+        $('highlightOverlay').innerHTML = htmlContent + "\n\n ";
         render(score, results);
         syncScroll();
     }
@@ -246,10 +255,13 @@ html_code = '''
         $('matchCount').textContent = items.length;
         $('analysisList').innerHTML = items.map(category => `
             <div class="analysis-item">
-                <span style="font-weight:800; font-size:1.1rem;">${category.name}</span>
-                <p style="font-size:0.85rem; color:var(--text-sub);">${category.desc}</p>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-weight:800; font-size:1.1rem;">${category.name}</span>
+                    <span style="background:#f1f5f9; color:var(--primary); font-size:0.75rem; padding:4px 10px; border-radius:6px; font-weight:800;">Risk: ${category.weight}</span>
+                </div>
+                <p style="font-size:0.85rem; color:var(--text-sub); margin: 5px 0 10px 0;">${category.desc}</p>
                 ${category.items.map(it => `
-                    <div style="margin-bottom:8px;">
+                    <div style="margin-bottom:12px;">
                         <span class="clause-badge">${it.clause}</span>
                         <div class="verbatim-text">${it.text}</div>
                     </div>
@@ -259,7 +271,7 @@ html_code = '''
     }
 
     function loadSample() {
-        $('inputText').value = "第5条（更新）本サービスは自動更新されます。期間満了までに解約の申し出がない限り自動的に更新されます。\\n第12条（免責）当社は一切の責任を負わないものとします。";
+        $('inputText').value = "第5条（更新）本サービスは自動更新されます。期間満了までに解約の申し出がない限り自動的に更新されます。\n第12条（免責）当社は一切の責任を負わないものとします。";
         handleInput();
     }
 </script>
