@@ -8,7 +8,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. 画面のレイアウトを固定するCSS
+# 2. 画面レイアウト固定・余白削除
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -20,7 +20,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. HTMLコード（承諾事項を添付①から完全復元）
+# 3. HTMLコード
 html_code = r'''
 <!DOCTYPE html>
 <html lang="ja">
@@ -32,30 +32,40 @@ html_code = r'''
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #2563eb; --danger: #ef4444; --bg: #f8fafc; 
-            --text-main: #1e293b; --text-sub: #64748b; --border: #e2e8f0;
+            --primary: #2563eb; --primary-disabled: #94a3b8; --danger: #ef4444; 
+            --bg: #f8fafc; --text-main: #1e293b; --text-sub: #64748b; --border: #e2e8f0;
         }
 
         * { box-sizing: border-box; font-family: 'Inter', 'Noto Sans JP', sans-serif; }
         html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--text-main); }
         
-        /* モーダルの完全再現 */
+        /* モーダル：ボタンの色の切り替え */
         #consentModal { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(12px); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
         .modal-content { background: white; padding: 2.5rem; border-radius: 28px; max-width: 620px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
         .scroll-terms { height: 250px; overflow-y: auto; background: #f1f5f9; padding: 1.5rem; border-radius: 16px; font-size: 0.85rem; line-height: 1.8; color: var(--text-sub); margin: 1.5rem 0; border: 1px solid var(--border); }
+        
+        /* ② 同意ボタンの状態別デザイン */
+        #startBtn { 
+            width: 100%; height: 56px; font-size: 1.1rem; border: none; border-radius: 12px; font-weight: 700; cursor: not-allowed;
+            background-color: var(--primary-disabled); color: white; transition: all 0.3s ease;
+        }
+        #startBtn:not(:disabled) { 
+            background-color: var(--primary); cursor: pointer; 
+        }
 
-        /* レイアウト固定設定 */
+        /* ① 左右50:50のレイアウト */
         header { background: #fff; border-bottom: 1px solid var(--border); padding: 0 2rem; height: 65px; display: flex; align-items: center; flex-shrink: 0; }
         .logo { font-size: 1.2rem; font-weight: 800; color: var(--primary); }
         main { display: flex; height: calc(100% - 65px); padding: 1.5rem; gap: 1.5rem; overflow: hidden; }
         
-        .panel-left { flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-        .editor-card { flex: 1; background: white; border-radius: 24px; border: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        .panel-left, .panel-right { flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
         
+        /* エディタ部分 */
+        .editor-card { flex: 1; background: white; border-radius: 24px; border: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; position: relative; }
         .toolbar { height: 70px; padding: 0 1.5rem; display: flex; align-items: center; background: white; border-bottom: 1px solid var(--border); flex-shrink: 0; }
         .actionbar { height: 70px; padding: 0 1.5rem; display: flex; align-items: center; justify-content: space-between; background: white; border-top: 1px solid var(--border); flex-shrink: 0; }
-
         .container-box { flex: 1; position: relative; overflow: hidden; }
+        
         textarea, #highlightOverlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             padding: 30px !important; font-size: 16px !important; line-height: 1.8 !important;
@@ -66,7 +76,8 @@ html_code = r'''
         #highlightOverlay { z-index: 1; color: transparent !important; overflow-y: auto; background: white; }
         .hl { background-color: rgba(239, 68, 68, 0.2); border-bottom: 2px solid var(--danger); font-weight: 800; }
 
-        .panel-right { width: 480px; display: flex; flex-direction: column; gap: 1.5rem; height: 100%; overflow-y: auto; }
+        /* 右側パネル：解析結果 */
+        .panel-right { overflow-y: auto; padding-right: 5px; }
         .risk-card { padding: 1.5rem; border-radius: 24px; color: white; }
         
         .btn { display: inline-flex; align-items: center; justify-content: center; height: 46px; padding: 0 1.5rem; border-radius: 12px; font-weight: 700; cursor: pointer; border: 1px solid var(--border); background: #fff; }
@@ -95,7 +106,7 @@ html_code = r'''
             <input type="checkbox" id="consentCheck" style="transform: scale(1.3);" onchange="document.getElementById('startBtn').disabled = !this.checked">
             <span>免責事項を理解し、自己責任で利用することに同意します</span>
         </label>
-        <button id="startBtn" class="btn btn-primary" style="width: 100%; height: 56px; font-size: 1.1rem;" onclick="document.getElementById('consentModal').style.display='none'" disabled>同意して解析を開始する</button>
+        <button id="startBtn" onclick="document.getElementById('consentModal').style.display='none'" disabled>同意して解析を開始する</button>
     </div>
 </div>
 
