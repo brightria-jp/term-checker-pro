@@ -8,7 +8,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. 画面レイアウト固定
+# 2. 画面レイアウト固定・スクロール制御
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -20,54 +20,74 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. HTMLコード (HTML版の解析ロジックを完全復元)
+# 3. HTMLコード (添付いただいたロジックを100%移植)
 html_code = r'''
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TermChecker PRO</title>
+    <title>TermChecker PRO - Precision Overlay</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #2563eb; --primary-disabled: #94a3b8; --danger: #ef4444; 
-            --bg: #f8fafc; --text-main: #1e293b; --text-sub: #64748b; --border: #e2e8f0;
+            --primary: #2563eb; --danger: #ef4444; --warning: #f59e0b;
+            --bg: #f8fafc; --card: #ffffff; --text-main: #1e293b;
+            --text-sub: #64748b; --border: #e2e8f0; --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
         }
 
         * { box-sizing: border-box; font-family: 'Inter', 'Noto Sans JP', sans-serif; }
-        html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--text-main); }
+        body { background: var(--bg); color: var(--text-main); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
-        /* モーダル */
+        /* モーダル：同意ボタンの活性化制御 */
         #consentModal { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(12px); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .modal-content { background: white; padding: 2.5rem; border-radius: 28px; max-width: 620px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .modal-content { background: white; padding: 2.5rem; border-radius: 28px; max-width: 620px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); animation: modalUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes modalUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .scroll-terms { height: 250px; overflow-y: auto; background: #f1f5f9; padding: 1.5rem; border-radius: 16px; font-size: 0.85rem; line-height: 1.8; color: var(--text-sub); margin: 1.5rem 0; border: 1px solid var(--border); }
-        #startBtn { width: 100%; height: 56px; font-size: 1.1rem; border: none; border-radius: 12px; font-weight: 700; cursor: not-allowed; background-color: var(--primary-disabled); color: white; transition: all 0.3s ease; }
-        #startBtn:not(:disabled) { background-color: var(--primary); cursor: pointer; }
 
-        /* レイアウト：50:50 */
-        header { background: #fff; border-bottom: 1px solid var(--border); padding: 0 2rem; height: 65px; display: flex; align-items: center; flex-shrink: 0; }
-        .logo { font-size: 1.2rem; font-weight: 800; color: var(--primary); }
-        main { display: flex; height: calc(100% - 65px); padding: 1.5rem; gap: 1.5rem; overflow: hidden; }
-        .panel-left, .panel-right { flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-        .editor-card { flex: 1; background: white; border-radius: 24px; border: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; position: relative; }
-        .toolbar { height: 70px; padding: 0 1.5rem; display: flex; align-items: center; background: white; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-        .actionbar { height: 70px; padding: 0 1.5rem; display: flex; align-items: center; justify-content: space-between; background: white; border-top: 1px solid var(--border); flex-shrink: 0; }
-        .container-box { flex: 1; position: relative; overflow: hidden; }
-        textarea, #highlightOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 30px !important; font-size: 16px !important; line-height: 1.8 !important; white-space: pre-wrap !important; word-wrap: break-word !important; margin: 0 !important; border: none !important; outline: none !important; }
-        textarea { z-index: 2; background: transparent !important; color: #334155; resize: none; overflow-y: auto; }
-        #highlightOverlay { z-index: 1; color: transparent !important; overflow-y: auto; background: white; }
-        .hl { background-color: rgba(239, 68, 68, 0.2); border-bottom: 2px solid var(--danger); font-weight: 800; }
+        header { background: #fff; border-bottom: 1px solid var(--border); padding: 0.8rem 2rem; display: flex; justify-content: space-between; align-items: center; z-index: 100; height: 65px; }
+        .logo { font-size: 1.2rem; font-weight: 800; color: var(--primary); display: flex; align-items: center; gap: 8px; }
 
-        .panel-right { overflow-y: auto; padding-right: 5px; }
-        .risk-card { padding: 1.5rem; border-radius: 24px; color: white; transition: all 0.4s ease; }
-        .btn { display: inline-flex; align-items: center; justify-content: center; height: 46px; padding: 0 1.5rem; border-radius: 12px; font-weight: 700; cursor: pointer; border: 1px solid var(--border); background: #fff; }
-        .btn-primary { background: var(--primary); color: white; border: none; }
-        .hidden { display: none; }
+        main { display: flex; flex: 1; overflow: hidden; padding: 1.5rem; gap: 1.5rem; }
+        
+        /* 左右 50:50 の比率 */
+        .panel-left { flex: 1; display: flex; flex-direction: column; gap: 1rem; position: relative; overflow: hidden; }
+        .panel-right { flex: 1; display: flex; flex-direction: column; gap: 1.5rem; overflow-y: auto; }
+        
+        .editor-card { flex: 1; background: white; border-radius: 24px; border: 1px solid var(--border); box-shadow: var(--shadow); display: flex; flex-direction: column; position: relative; overflow: hidden; }
+        .container-box { position: relative; flex: 1; overflow: hidden; margin: 70px 0; background: #fff; }
+        
+        textarea, #highlightOverlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            padding: 24px !important; font-size: 16px !important; line-height: 1.8 !important;
+            font-family: 'Inter', 'Noto Sans JP', sans-serif !important; white-space: pre-wrap !important;
+            word-wrap: break-word !important; margin: 0 !important; border: none !important; outline: none !important;
+            box-sizing: border-box !important; letter-spacing: normal !important;
+        }
+        textarea { z-index: 2; background: transparent !important; color: #334155; resize: none; -webkit-text-fill-color: currentColor; }
+        #highlightOverlay { z-index: 1; color: transparent !important; pointer-events: none; overflow-y: auto; background: white; }
+        .hl { color: transparent !important; background-color: rgba(239, 68, 68, 0.2); border-bottom: 2px solid var(--danger); font-weight: 800; }
+
+        .btn { display: inline-flex; align-items: center; justify-content: center; height: 48px; padding: 0 1.5rem; border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.2s; border: 1px solid var(--border); background: #fff; line-height: 1; }
+        .btn-primary { background: var(--primary); color: white; border: none; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); }
+        .btn-primary:disabled { background-color: #94a3b8; opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+
+        .toolbar, .actionbar { height: 70px; padding: 0 1.5rem; display: flex; align-items: center; background: white; width: 100%; z-index: 10; position: absolute; }
+        .toolbar { border-bottom: 1px solid var(--border); top: 0; gap: 12px; }
+        .actionbar { border-top: 1px solid var(--border); bottom: 0; justify-content: space-between; }
+
+        .risk-card { padding: 1.5rem; border-radius: 24px; color: white; box-shadow: var(--shadow); }
+        .risk-card.high { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+        .risk-card.mid { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .risk-card.low { background: linear-gradient(135deg, #10b981, #059669); }
+        .risk-val { font-size: 2.6rem; font-weight: 800; margin: 5px 0; }
+
         .analysis-item { background: white; border-radius: 20px; border: 1px solid var(--border); padding: 1.5rem; margin-bottom: 1rem; }
         .clause-badge { background: var(--primary); color: white; padding: 2px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 800; margin-bottom: 8px; display: inline-block; }
         .verbatim-text { font-size: 0.85rem; color: #334155; background: #fff5f5; padding: 10px; border-left: 4px solid var(--danger); border-radius: 4px; line-height: 1.6; margin-top: 10px; }
+
+        .hidden { display: none; }
     </style>
 </head>
 <body>
@@ -89,11 +109,11 @@ html_code = r'''
             <input type="checkbox" id="consentCheck" style="transform: scale(1.3);" onchange="document.getElementById('startBtn').disabled = !this.checked">
             <span>免責事項を理解し、自己責任で利用することに同意します</span>
         </label>
-        <button id="startBtn" onclick="document.getElementById('consentModal').style.display='none'" disabled>同意して解析を開始する</button>
+        <button id="startBtn" class="btn btn-primary" style="width: 100%; height: 56px; font-size: 1.1rem;" onclick="document.getElementById('consentModal').style.display='none'" disabled>同意して解析を開始する</button>
     </div>
 </div>
 
-<header><div class="logo">⚖️ TermChecker PRO</div></header>
+<header><div class="logo">⚖️ TermChecker <span>PRO</span></div></header>
 
 <main>
     <section class="panel-left">
@@ -104,11 +124,11 @@ html_code = r'''
             </div>
             <div class="container-box">
                 <div id="highlightOverlay"></div>
-                <textarea id="inputText" onscroll="syncScroll()" oninput="handleInput()" placeholder="ここに規約を貼り付けてください..."></textarea>
+                <textarea id="inputText" onscroll="syncScroll()" oninput="handleInput()" placeholder="規約を貼り付けてください..."></textarea>
             </div>
             <div class="actionbar">
                 <button class="btn" onclick="loadSample()">サンプル</button>
-                <button class="btn btn-primary" style="min-width: 180px;" onclick="runAnalysis()">規約を解析する</button>
+                <button class="btn btn-primary" style="min-width: 200px;" onclick="runAnalysis()">規約を解析する</button>
             </div>
         </div>
     </section>
@@ -119,11 +139,11 @@ html_code = r'''
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
                 <div id="riskCard" class="risk-card">
                     <span style="font-size: 0.75rem; font-weight: 800; opacity: 0.9;">TOTAL RISK</span>
-                    <div id="riskLevel" style="font-size: 2.2rem; font-weight: 800;">---</div>
+                    <div id="riskLevel" class="risk-val">---</div>
                 </div>
                 <div class="risk-card" style="background: #1e293b;">
                     <span style="font-size: 0.75rem; font-weight: 800; opacity: 0.9;">ALERTS</span>
-                    <div id="matchCount" style="font-size: 2.2rem; font-weight: 800;">0</div>
+                    <div id="matchCount" class="risk-val">0</div>
                 </div>
             </div>
             <h3 style="margin-top: 2rem; font-weight: 800;">🚩 重点確認項目 (条文特定済み)</h3>
@@ -137,42 +157,58 @@ html_code = r'''
     const pdfjsLib = window['pdfjs-dist/build/pdf'];
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-    function syncScroll() { $('highlightOverlay').scrollTop = $('inputText').scrollTop; }
-    function handleInput() { $('highlightOverlay').textContent = $('inputText').value; syncScroll(); }
+    function syncScroll() {
+        $('highlightOverlay').scrollTop = $('inputText').scrollTop;
+    }
+
+    function handleInput() {
+        $('highlightOverlay').textContent = $('inputText').value;
+        syncScroll();
+    }
 
     document.getElementById('fileInput').onchange = async (e) => {
-        const file = e.target.files[0]; if (!file) return;
+        const file = e.target.files[0];
+        if (!file) return;
         if (file.type === 'application/pdf') {
             const pdf = await pdfjsLib.getDocument({data: await file.arrayBuffer()}).promise;
             let fullText = "";
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const content = await page.getTextContent();
-                content.items.forEach(item => { fullText += item.str; });
+                let lastY = -1;
+                content.items.forEach(item => {
+                    if (lastY !== -1 && Math.abs(lastY - item.transform[5]) > 12) fullText += "\n";
+                    fullText += item.str;
+                    lastY = item.transform[5];
+                });
                 fullText += "\n\n";
             }
             $('inputText').value = fullText;
         } else {
-            const reader = new FileReader(); reader.onload = (ev) => $('inputText').value = ev.target.result;
+            const reader = new FileReader();
+            reader.onload = (ev) => $('inputText').value = ev.target.result;
             reader.readAsText(file);
         }
         handleInput();
     };
 
-    // 【重要】HTML版の全パターン・重みを100%復元
+    // リスク判定辞書（添付いただいたHTMLファイルを100%再現）
     const DICT = [
-        { name: '不利益な自動更新', weight: 15, patterns: ["自動更新", "更新するものとする", "解約しない限り自動的に", "自動で更新", "自動的に更新", "更新を希望しない場合"], desc: '期限までに解約しないと、勝手に契約が続いてしまう条項です。' },
-        { name: '解約の制限・不利益', weight: 15, patterns: ["中途解約できない", "返金は致しません", "返金いたしません", "解約はできない", "戻りません", "不可", "返金に応じ", "キャンセル料", "違約金として"], desc: '一度支払うと戻ってこない、または辞めにくい条件が設定されています。' },
-        { name: '高額な違約金', weight: 12, patterns: ["違約金", "損害賠償額を制限しない", "残期間分を支払う", "損害賠償額の予定", "相当する額を支払う"], desc: '解約時やミスをした際に、非常に高額な請求をされる可能性があります。' },
-        { name: '一方的な規約変更', weight: 10, patterns: ["予告なく変更", "いつでも変更できる", "変更できるものとし", "承諾したものとみなす", "通知することなく"], desc: '会社側の都合で、勝手にルールを不利に変えられる恐れがあります。' },
-        { name: '広範な免責事項', weight: 10, patterns: ["一切の責任を負わない", "免責される", "保証しない", "何らの責任も負わない", "損害について責任を負わず"], desc: '会社側に過失があっても、責任を逃れようとする条項です。' },
-        { name: '著作権の譲渡・利用', weight: 8, patterns: ["著作権を譲渡", "当社に帰属", "無償で利用", "自由に使用できる", "許諾するものとする"], desc: 'あなたの投稿や作品が、勝手に会社の持ち物として使われる可能性があります。' }
+        { name: '返金不可・制限', weight: 15, patterns: ["返金", "致しません", "不可", "応じない", "戻りません", "キャンセル料"], desc: '支払った料金が戻らない条項です。' },
+        { name: '不利益な自動更新', weight: 12, patterns: ["自動更新", "更新する", "自動的に", "解約しない限り"], desc: '手続きを忘れると契約が継続されるリスクがあります。' },
+        { name: '広範な免責事項', weight: 10, patterns: ["一切の責任を負わない", "免責", "保証しません", "補償いたしません"], desc: '運営側のミスでも責任を逃れる可能性がある条項です。' },
+        { name: '著作権の譲渡・利用', weight: 8, patterns: ["著作権", "帰属", "無償で利用", "当社に許諾"], desc: '投稿内容を自由に使う権利に関する条項です。' },
+        { name: '規約変更・管轄', weight: 7, patterns: ["予告なく変更", "合意管轄", "裁判所"], desc: 'ルール変更やトラブル時の裁判場所に注意。' }
     ];
 
     function runAnalysis() {
-        const text = $('inputText').value; if(!text) return;
+        const text = $('inputText').value;
+        if(!text) return;
+        
         let htmlContent = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        const results = []; let score = 0; let sentencesToHighlight = [];
+        const results = [];
+        let score = 0;
+        let sentencesToHighlight = [];
 
         DICT.forEach(item => {
             let matches = [];
@@ -183,8 +219,10 @@ html_code = r'''
                     let endIdx = text.indexOf("。", idx);
                     if (endIdx === -1) endIdx = text.length;
                     const fullSentence = text.substring(startIdx, endIdx + 1).trim();
+
                     const sub = text.substring(0, idx);
                     const m = [...sub.matchAll(/第\s*\d+\s*条/g)];
+                    
                     if (m.length > 0 && fullSentence.length > 2) {
                         const clauseName = m[m.length - 1][0].replace(/\s/g, '');
                         matches.push({ clause: clauseName, text: fullSentence });
@@ -193,16 +231,18 @@ html_code = r'''
                     idx = text.indexOf(p, idx + 1);
                 }
             });
+
             if(matches.length > 0) {
-                const uniqueItems = matches.filter((v, i, a) => a.findIndex(t => (t.text === v.text)) === i);
+                const uniqueMatches = matches.filter((v, i, a) => a.findIndex(t => (t.clause === v.clause && t.text === v.text)) === i);
                 score += item.weight;
-                results.push({ ...item, items: uniqueItems });
+                results.push({ ...item, items: uniqueMatches });
             }
         });
 
         const uniqueSentences = [...new Set(sentencesToHighlight)].sort((a,b) => b.length - a.length);
         uniqueSentences.forEach(s => {
             const escapedS = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            if(escapedS.length < 3) return;
             const reg = new RegExp(escapedS.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g');
             htmlContent = htmlContent.replace(reg, `<span class="hl">${escapedS}</span>`);
         });
@@ -217,17 +257,10 @@ html_code = r'''
         $('resultsUI').classList.remove('hidden');
         const card = $('riskCard');
         
-        // 判定境界値をHTML版と同期
-        if(score >= 25) { 
-            card.style.background='linear-gradient(135deg, #ef4444, #b91c1c)'; 
-            $('riskLevel').textContent='HIGH'; 
-        } else if(score >= 12) { 
-            card.style.background='linear-gradient(135deg, #f59e0b, #d97706)'; 
-            $('riskLevel').textContent='MID'; 
-        } else { 
-            card.style.background='linear-gradient(135deg, #10b981, #059669)'; 
-            $('riskLevel').textContent='LOW'; 
-        }
+        // 判定基準：25点以上でHIGH、12点以上でMID
+        if(score >= 25) { card.className='risk-card high'; $('riskLevel').textContent='HIGH'; }
+        else if(score >= 12) { card.className='risk-card mid'; $('riskLevel').textContent='MID'; }
+        else { card.className='risk-card low'; $('riskLevel').textContent='LOW'; }
         
         $('matchCount').textContent = items.length;
         $('analysisList').innerHTML = items.map(category => `
@@ -248,7 +281,7 @@ html_code = r'''
     }
 
     function loadSample() {
-        $('inputText').value = "第5条（更新）本サービスは自動更新されます。本契約は、期間満了までに解約の申し出がない限り自動的に更新されるものとします。\n第12条（免責）当社は、本サービスの利用により生じた損害について一切の責任を負わないものとします。";
+        $('inputText').value = "第5条（更新）本サービスは自動更新されます。本契約は、期間満了までに解約の申し出がない限り自動的に更新されます。\n第12条（免責）当社は損害について一切の責任を負わないものとします。理由の如何を問わず、一度支払われた料金の返金には一切応じません。";
         handleInput();
     }
 </script>
@@ -256,5 +289,5 @@ html_code = r'''
 </html>
 '''
 
-# 4. 表示
+# 表示
 components.html(html_code)
