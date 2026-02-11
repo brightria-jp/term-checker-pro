@@ -8,7 +8,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. 画面レイアウト固定・余白削除
+# 2. 画面レイアウト固定
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -20,7 +20,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. HTMLコード
+# 3. HTMLコード (HTML版のロジックを完全移植)
 html_code = r'''
 <!DOCTYPE html>
 <html lang="ja">
@@ -32,35 +32,31 @@ html_code = r'''
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #2563eb; --primary-disabled: #94a3b8; --danger: #ef4444; 
+            --primary: #2563eb; --primary-disabled: #94a3b8; --danger: #ef4444; --warning: #f59e0b;
             --bg: #f8fafc; --text-main: #1e293b; --text-sub: #64748b; --border: #e2e8f0;
         }
 
         * { box-sizing: border-box; font-family: 'Inter', 'Noto Sans JP', sans-serif; }
         html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--text-main); }
         
-        /* モーダル：ボタンの色の切り替え */
+        /* モーダル */
         #consentModal { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(12px); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
         .modal-content { background: white; padding: 2.5rem; border-radius: 28px; max-width: 620px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
         .scroll-terms { height: 250px; overflow-y: auto; background: #f1f5f9; padding: 1.5rem; border-radius: 16px; font-size: 0.85rem; line-height: 1.8; color: var(--text-sub); margin: 1.5rem 0; border: 1px solid var(--border); }
         
-        /* ② 同意ボタンの状態別デザイン */
         #startBtn { 
             width: 100%; height: 56px; font-size: 1.1rem; border: none; border-radius: 12px; font-weight: 700; cursor: not-allowed;
             background-color: var(--primary-disabled); color: white; transition: all 0.3s ease;
         }
-        #startBtn:not(:disabled) { 
-            background-color: var(--primary); cursor: pointer; 
-        }
+        #startBtn:not(:disabled) { background-color: var(--primary); cursor: pointer; }
 
-        /* ① 左右50:50のレイアウト */
+        /* レイアウト */
         header { background: #fff; border-bottom: 1px solid var(--border); padding: 0 2rem; height: 65px; display: flex; align-items: center; flex-shrink: 0; }
         .logo { font-size: 1.2rem; font-weight: 800; color: var(--primary); }
         main { display: flex; height: calc(100% - 65px); padding: 1.5rem; gap: 1.5rem; overflow: hidden; }
         
         .panel-left, .panel-right { flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
         
-        /* エディタ部分 */
         .editor-card { flex: 1; background: white; border-radius: 24px; border: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; position: relative; }
         .toolbar { height: 70px; padding: 0 1.5rem; display: flex; align-items: center; background: white; border-bottom: 1px solid var(--border); flex-shrink: 0; }
         .actionbar { height: 70px; padding: 0 1.5rem; display: flex; align-items: center; justify-content: space-between; background: white; border-top: 1px solid var(--border); flex-shrink: 0; }
@@ -76,15 +72,17 @@ html_code = r'''
         #highlightOverlay { z-index: 1; color: transparent !important; overflow-y: auto; background: white; }
         .hl { background-color: rgba(239, 68, 68, 0.2); border-bottom: 2px solid var(--danger); font-weight: 800; }
 
-        /* 右側パネル：解析結果 */
         .panel-right { overflow-y: auto; padding-right: 5px; }
         .risk-card { padding: 1.5rem; border-radius: 24px; color: white; }
         
         .btn { display: inline-flex; align-items: center; justify-content: center; height: 46px; padding: 0 1.5rem; border-radius: 12px; font-weight: 700; cursor: pointer; border: 1px solid var(--border); background: #fff; }
         .btn-primary { background: var(--primary); color: white; border: none; }
         .hidden { display: none; }
+        
+        /* 解析結果アイテムのスタイル (HTML版と同期) */
         .analysis-item { background: white; border-radius: 20px; border: 1px solid var(--border); padding: 1.5rem; margin-bottom: 1rem; }
-        .verbatim-text { font-size: 0.85rem; color: #334155; background: #fff5f5; padding: 10px; border-left: 4px solid var(--danger); border-radius: 4px; margin-top: 10px; }
+        .clause-badge { background: var(--primary); color: white; padding: 2px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 800; margin-bottom: 8px; display: inline-block; }
+        .verbatim-text { font-size: 0.85rem; color: #334155; background: #fff5f5; padding: 10px; border-left: 4px solid var(--danger); border-radius: 4px; line-height: 1.6; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -134,7 +132,7 @@ html_code = r'''
         <div id="emptyState" style="text-align: center; margin-top: 10rem; opacity: 0.4;"><p>解析結果が表示されます</p></div>
         <div id="resultsUI" class="hidden">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-                <div id="riskCard" class="risk-card" style="background: var(--primary);">
+                <div id="riskCard" class="risk-card">
                     <span style="font-size: 0.75rem; font-weight: 800; opacity: 0.9;">TOTAL RISK</span>
                     <div id="riskLevel" style="font-size: 2.2rem; font-weight: 800;">---</div>
                 </div>
@@ -189,10 +187,14 @@ html_code = r'''
         handleInput();
     };
 
+    // 辞書データをHTML版から完全復元
     const DICT = [
-        { name: '返金不可・制限', weight: 15, patterns: ["返金", "致しません", "不可", "応じない", "戻りません"], desc: '支払った料金が戻らない条項です。' },
-        { name: '不利益な自動更新', weight: 12, patterns: ["自動更新", "更新する", "自動的に", "解約しない限り"], desc: '手続きを忘れると継続されるリスク。' },
-        { name: '免責事項', weight: 10, patterns: ["一切の責任を負わない", "免責", "保証しません"], desc: '運営側が責任を逃れる可能性。' }
+        { name: '不利益な自動更新', weight: 15, patterns: ["自動更新", "更新するものとする", "解約しない限り自動的に", "自動で更新"], desc: '期限までに解約しないと、勝手に契約が続いてしまう条項です。' },
+        { name: '解約の制限・不利益', weight: 15, patterns: ["中途解約できない", "返金は致しません", "返金いたしません", "解約はできない", "戻りません", "不可"], desc: '一度支払うと戻ってこない、または辞めにくい条件が設定されています。' },
+        { name: '高額な違約金', weight: 12, patterns: ["違約金", "損害賠償額を制限しない", "残期間分を支払う", "損害賠償額の予定"], desc: '解約時やミスをした際に、非常に高額な請求をされる可能性があります。' },
+        { name: '一方的な規約変更', weight: 10, patterns: ["予告なく変更", "いつでも変更できる", "変更できるものとし", "承諾したものとみなす"], desc: '会社側の都合で、勝手にルールを不利に変えられる恐れがあります。' },
+        { name: '広範な免責事項', weight: 10, patterns: ["一切の責任を負わない", "免責される", "保証しない", "何らの責任も負わない"], desc: '会社側に過失があっても、責任を逃れようとする条項です。' },
+        { name: '著作権の譲渡・利用', weight: 8, patterns: ["著作権を譲渡", "当社に帰属", "無償で利用", "自由に使用できる"], desc: 'あなたの投稿や作品が、勝手に会社の持ち物として使われる可能性があります。' }
     ];
 
     function runAnalysis() {
@@ -214,7 +216,7 @@ html_code = r'''
                     const fullSentence = text.substring(startIdx, endIdx + 1).trim();
                     const sub = text.substring(0, idx);
                     const m = [...sub.matchAll(/第\s*\d+\s*条/g)];
-                    if (m.length > 0) {
+                    if (m.length > 0 && fullSentence.length > 2) {
                         const clauseName = m[m.length - 1][0].replace(/\s/g, '');
                         matches.push({ clause: clauseName, text: fullSentence });
                         sentencesToHighlight.push(fullSentence);
@@ -238,23 +240,30 @@ html_code = r'''
 
         $('highlightOverlay').innerHTML = htmlContent + "\n\n ";
         render(score, results);
+        syncScroll();
     }
 
     function render(score, items) {
         $('emptyState').classList.add('hidden');
         $('resultsUI').classList.remove('hidden');
         const card = $('riskCard');
-        if(score >= 25) { card.style.background='#ef4444'; $('riskLevel').textContent='HIGH'; }
-        else if(score >= 12) { card.style.background='#f59e0b'; $('riskLevel').textContent='MID'; }
-        else { card.style.background='#10b981'; $('riskLevel').textContent='LOW'; }
+        
+        // リスク判定ロジックをHTML版と完全に同期
+        if(score >= 25) { card.style.background='linear-gradient(135deg, #ef4444, #b91c1c)'; $('riskLevel').textContent='HIGH'; }
+        else if(score >= 12) { card.style.background='linear-gradient(135deg, #f59e0b, #d97706)'; $('riskLevel').textContent='MID'; }
+        else { card.style.background='linear-gradient(135deg, #10b981, #059669)'; $('riskLevel').textContent='LOW'; }
+        
         $('matchCount').textContent = items.length;
         $('analysisList').innerHTML = items.map(category => `
             <div class="analysis-item">
-                <span style="font-weight:800; font-size:1.1rem;">${category.name}</span>
-                <p style="font-size:0.85rem; color:var(--text-sub); margin:5px 0;">${category.desc}</p>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-weight:800; font-size:1.1rem;">${category.name}</span>
+                    <span style="background:#f1f5f9; color:var(--primary); font-size:0.75rem; padding:4px 10px; border-radius:6px; font-weight:800;">Risk: ${category.weight}</span>
+                </div>
+                <p style="font-size:0.85rem; color:var(--text-sub); margin: 5px 0 10px 0;">${category.desc}</p>
                 ${category.items.map(it => `
-                    <div style="margin-top:10px;">
-                        <span style="font-size:0.75rem; background:var(--primary); color:white; padding:2px 8px; border-radius:4px; font-weight:800;">${it.clause}</span>
+                    <div style="margin-bottom:12px;">
+                        <span class="clause-badge">${it.clause}</span>
                         <div class="verbatim-text">${it.text}</div>
                     </div>
                 `).join('')}
@@ -263,7 +272,7 @@ html_code = r'''
     }
 
     function loadSample() {
-        $('inputText').value = "第5条（更新）本サービスは自動更新されます。解約の申し出がない限り自動的に更新されます。\n第12条（免責）当社は一切の責任を負わないものとします。";
+        $('inputText').value = "第5条（更新）本サービスは自動更新されます。本契約は、期間満了までに解約の申し出がない限り自動的に更新されるものとします。\n第12条（免責）当社は、システムの中断に関し一切の責任を負わないものとします。";
         handleInput();
     }
 </script>
@@ -271,5 +280,5 @@ html_code = r'''
 </html>
 '''
 
-# 表示
+# 4. 表示
 components.html(html_code)
