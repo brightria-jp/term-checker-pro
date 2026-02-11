@@ -19,8 +19,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. HTMLコードを変数に格納
-html_code = """
+# 3. HTMLコードを変数に格納 (干渉を防ぐためシングルクォート3つを使用)
+html_code = '''
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -52,12 +52,11 @@ html_code = """
         
         .container-box { position: relative; flex: 1; overflow: hidden; margin-top: 70px; margin-bottom: 70px; background: #fff; }
         
-        /* ① 左側テキスト表示箇所の行間修正 */
         textarea, #highlightOverlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             padding: 30px !important; 
             font-size: 16px !important; 
-            line-height: 1.8 !important; /* 行間を元ファイルに合わせる */
+            line-height: 1.8 !important; 
             font-family: 'Inter', 'Noto Sans JP', sans-serif !important;
             white-space: pre-wrap !important;
             word-wrap: break-word !important;
@@ -130,4 +129,143 @@ html_code = """
         <div id="emptyState" style="text-align: center; margin-top: 10rem; opacity: 0.4;"><p>解析結果が表示されます</p></div>
         <div id="resultsUI" class="hidden">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-                <div id="
+                <div id="riskCard" class="risk-card">
+                    <span style="font-size: 0.75rem; font-weight: 800;">TOTAL RISK</span>
+                    <div id="riskLevel" class="risk-val">---</div>
+                </div>
+                <div class="risk-card" style="background: #1e293b;">
+                    <span style="font-size: 0.75rem; font-weight: 800;">ALERTS</span>
+                    <div id="matchCount" class="risk-val">0</div>
+                </div>
+            </div>
+            <h3 style="margin-top: 2rem; font-weight: 800;">🚩 重点確認項目 (条文特定済み)</h3>
+            <div id="analysisList"></div>
+        </div>
+    </section>
+</main>
+
+<script>
+    const $ = (id) => document.getElementById(id);
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    function syncScroll() {
+        $('highlightOverlay').scrollTop = $('inputText').scrollTop;
+    }
+
+    function handleInput() {
+        $('highlightOverlay').textContent = $('inputText').value;
+        syncScroll();
+    }
+
+    document.getElementById('fileInput').onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (file.type === 'application/pdf') {
+            const pdf = await pdfjsLib.getDocument({data: await file.arrayBuffer()}).promise;
+            let fullText = "";
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                let lastY = -1;
+                content.items.forEach(item => {
+                    if (lastY !== -1 && Math.abs(lastY - item.transform[5]) > 10) fullText += "\\n";
+                    fullText += item.str;
+                    lastY = item.transform[5];
+                });
+                fullText += "\\n\\n";
+            }
+            $('inputText').value = fullText;
+        } else {
+            const reader = new FileReader();
+            reader.onload = (ev) => $('inputText').value = ev.target.result;
+            reader.readAsText(file);
+        }
+        handleInput();
+    };
+
+    const DICT = [
+        { name: '返金不可・制限', weight: 15, patterns: ["返金", "致しません", "不可", "応じない", "戻りません"], desc: '支払った料金が戻らない条項です。' },
+        { name: '不利益な自動更新', weight: 12, patterns: ["自動更新", "更新する", "自動的に", "解約しない限り"], desc: '手続きを忘れると契約が継続されるリスクがあります。' },
+        { name: '広範な免責事項', weight: 10, patterns: ["一切の責任を負わない", "免責", "保証しません"], desc: '運営側のミスでも責任を逃れる可能性がある条項です。' }
+    ];
+
+    function runAnalysis() {
+        const text = $('inputText').value;
+        if(!text) return;
+        let htmlContent = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const results = [];
+        let score = 0;
+        let sentencesToHighlight = [];
+
+        DICT.forEach(item => {
+            let matches = [];
+            item.patterns.forEach(p => {
+                let idx = text.indexOf(p);
+                while(idx !== -1) {
+                    const startIdx = text.lastIndexOf("。", idx) + 1;
+                    let endIdx = text.indexOf("。", idx);
+                    if (endIdx === -1) endIdx = text.length;
+                    const fullSentence = text.substring(startIdx, endIdx + 1).trim();
+                    const sub = text.substring(0, idx);
+                    const m = [...sub.matchAll(/第\\s*\\d+\\s*条/g)];
+                    if (m.length > 0 && fullSentence.length > 2) {
+                        const clauseName = m[m.length - 1][0].replace(/\\s/g, '');
+                        matches.push({ clause: clauseName, text: fullSentence });
+                        sentencesToHighlight.push(fullSentence);
+                    }
+                    idx = text.indexOf(p, idx + 1);
+                }
+            });
+            if(matches.length > 0) {
+                const uniqueItems = matches.filter((v, i, a) => a.findIndex(t => (t.text === v.text)) === i);
+                score += item.weight;
+                results.push({ ...item, items: uniqueItems });
+            }
+        });
+
+        const uniqueSentences = [...new Set(sentencesToHighlight)].sort((a,b) => b.length - a.length);
+        uniqueSentences.forEach(s => {
+            const escapedS = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            const reg = new RegExp(escapedS.replace(/[-\\/\\^$*+?.()|[\\]{}]/g, '\\\\$&'), 'g');
+            htmlContent = htmlContent.replace(reg, `<span class="hl">${escapedS}</span>`);
+        });
+
+        $('highlightOverlay').innerHTML = htmlContent + "\\n\\n ";
+        render(score, results);
+        syncScroll();
+    }
+
+    function render(score, items) {
+        $('emptyState').classList.add('hidden');
+        $('resultsUI').classList.remove('hidden');
+        const card = $('riskCard');
+        if(score >= 25) { card.className='risk-card high'; $('riskLevel').textContent='HIGH'; }
+        else if(score >= 12) { card.className='risk-card mid'; $('riskLevel').textContent='MID'; }
+        else { card.className='risk-card low'; $('riskLevel').textContent='LOW'; }
+        $('matchCount').textContent = items.length;
+        $('analysisList').innerHTML = items.map(category => `
+            <div class="analysis-item">
+                <span style="font-weight:800; font-size:1.1rem;">${category.name}</span>
+                <p style="font-size:0.85rem; color:var(--text-sub);">${category.desc}</p>
+                ${category.items.map(it => `
+                    <div style="margin-bottom:8px;">
+                        <span class="clause-badge">${it.clause}</span>
+                        <div class="verbatim-text">${it.text}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `).join('');
+    }
+
+    function loadSample() {
+        $('inputText').value = "第5条（更新）本サービスは自動更新されます。期間満了までに解約の申し出がない限り自動的に更新されます。\\n第12条（免責）当社は一切の責任を負わないものとします。";
+        handleInput();
+    }
+</script>
+</body>
+</html>
+'''
+
+# 4. 表示
+components.html(html_code, height=1300, scrolling=True)
